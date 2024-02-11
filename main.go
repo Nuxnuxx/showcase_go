@@ -1,44 +1,32 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"net/http"
+	"flag"
 	"os"
-	"strings"
 
+	"github.com/Nuxnuxx/showcase_go/internal/database"
+	"github.com/Nuxnuxx/showcase_go/internal/handlers"
+	"github.com/Nuxnuxx/showcase_go/internal/services"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
+	e := echo.New()
 
-	// GET API_KEY from .env file
-	API_KEY := os.Getenv("API_KEY")
+	PORT := flag.String("port", ":" + os.Getenv("PORT"), "port to run the server on")
 
-	// Build the URL
-	builder := strings.Builder{}
-	builder.WriteString("https://api.rawg.io/api/games?key=")
-	builder.WriteString(API_KEY)
-
-	// Make the request
-	resp, err := http.Get(builder.String())
+	store, err := database.NewStore(os.Getenv("DB_NAME"))
 
 	if err != nil {
-		panic(err)
+		e.Logger.Fatal(err)
 	}
 
-	// Defer the closing of the response body
-	defer resp.Body.Close()
+	gameServices := services.NewGamesServices(services.Game{}, store, os.Getenv("API_KEY"))
+	gameHandler := handlers.NewGamesHandlers(gameServices)
 
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
+	handlers.SetupRoutes(e, gameHandler)
 
-	if err != nil {
-		panic(err)
-	}
-
-	// Print the response body
-	fmt.Println(string(body))
-
-	// Now the body is close automatically because there is no need for it anymore
+	// Start the server
+	e.Logger.Fatal(e.Start(*PORT))
 }
