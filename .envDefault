@@ -1,0 +1,3 @@
+API_KEY="yourapikey"
+DB_NAME="saucisse"
+PORT="8080"
