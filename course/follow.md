@@ -689,3 +689,369 @@ git reset --hard HEAD
 git merge origin/echo_server
 ```
 ### | Checkpoint |
+
+
+# Now let's make it look like a real website
+
+For a goodlooking website we need a navbar, footer those things are called ```partials```.
+
+So start by creating a folder call ```partials``` in the views folder in which we add a file call ```navbar.partial.templ```.
+
+***EXERCICE***
+
+This navbar should be able to go to page ```/```,```/list```,```profil``` and ```/liked``` which are self explanatory.
+
+Enjoy and try do something cool, then implement it to the layout
+
+***CORRECTION***
+
+```go
+//Filename: internal/views/partials/navbar.partial.templ
+
+templ NavBar(){
+	<nav class="navbar bg-primary text-primary-content fixed top-0 z-10">
+		<div class="navbar-start">
+			<a hx-swap="transition:true" class="btn btn-ghost text-xl" href="/">
+				Todo List
+			</a>
+		</div>
+		<div class="navbar-end">
+				<a class="btn btn-ghost text-lg" href="/">
+					Home
+				</a>
+				<a class="btn btn-ghost text-lg" href="/list">
+					List
+				</a>
+				<a class="btn btn-ghost text-lg" href="/liked">
+					Liked
+				</a>
+				<a class="btn btn-ghost text-lg" href="/profil">
+					Profil
+				</a>
+		</div>
+	</nav>
+}
+
+//Filename: internal/views/layout/base.layout.templ
+<body>
+    <header>
+        @partials.NavBar()
+    </header>
+    { children... }
+</body>
+```
+
+
+Ok now that you have played a little with the templating engine, don't you find annoying to need to rerun ```templ generate``` everytime you make a change, let's fix this go in your ```Makefile```
+
+```Makefile
+build:
+    @templ generate
+```
+
+Now it will recreate template at every rerun of ```make run```
+
+You can also make a footer if you want !
+
+For now all of this is just frontend stuff and no ones of those link are working, let's get on it
+
+First the home page we need a page that informs the user of what is the website 
+
+Create a new file in the ```layout``` folder call ```homepage.layout.templ``` and insert your homepage templ
+```go
+//Filename: internal/views/layout/homepage.layout.templ
+templ Home() {
+	<div class="container mx-auto mt-8">
+		<section class="text-center">
+			<h1 class="text-4xl font-bold text-gray-800 mb-4">Welcome to GameApp!</h1>
+			<p class="text-lg text-gray-600 mb-8">Discover and like your favorite games.</p>
+			<a href="/login" class="bg-purple-500 text-white px-6 py-3 rounded-md text-lg hover:bg-blue-600">Get Started</a>
+		</section>
+	</div>
+}
+
+templ HomeIndex() {
+	@Base() {
+		@Home()
+	}
+}
+```
+
+Then add a new endpoint in ```routes.go``` and modify the current one
+```go
+//Filename: internal/handlers/routes.go
+func SetupRoutes(e *echo.Echo, gh *GamesHandler) {
+	e.GET("/", HomeHandler)
+	e.GET("/list", gh.GetGamesByPage)
+}
+
+func HomeHandler(c echo.Context) error {
+	return renderView(c, layout.HomeIndex())
+}
+```
+
+Here we have modify the endpoint to get the game of list on the path ```/list``` and create a new handler in which we render our new views
+
+The list endpoint don't work anymore because if we don't pass a query parameters ```page=x``` it crash and say invalid page why ?
+
+Because of this part
+```go
+//Filename: internal/handlers/games.handlers.go
+func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
+	page, err := strconv.Atoi(c.QueryParam("page"))
+
+    // This part just return JSON
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, "Invalid page")
+	}
+
+	games, err := gh.GamesServices.GetGamesByPage(page)
+
+    // This is also handle with a return as a JSON
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, "Something went wrong")
+	}
+
+
+	return renderView(c, gamesviews.GameIndex(games))
+}
+```
+
+So we need a way to show error in a more pretty / web app flavor, one of the common way to do it is to create a view for each error or redirect to another page.
+
+We could also just change the behavior of this handler to just send the page 0 if it had receive no page on his parameters.
+
+Finally, we will do both, first change the function to not crash when there is no query params.
+
+
+```go
+page := c.QueryParam("page")
+
+if page == "" {
+    page = "0"
+}
+
+pageInt, err := strconv.Atoi(page)
+
+if err != nil {
+    return c.JSON(http.StatusBadRequest, "Invalid page")
+}
+```
+
+Now the start of the handler should look like this, but we are still handling error with JSON response, let's fix it.
+
+Create a new folders in ```views``` named ```errors_pages``` and add one named ```error.400.templ``` in it we will show a more looking good errors
+
+```go
+//Filename: internal/views/errors_page/error.400.templ
+templ Error400() {
+	<section class="flex flex-col items-center justify-center h-[100vh] gap-4">
+		<div class="items-center justify-center flex flex-col gap-4">
+			<h1 class="text-9xl font-extrabold text-gray-700 tracking-widest">
+				400
+			</h1>
+			<h2 class="bg-rose-700 px-2 text-sm rounded rotate-[20deg] absolute">
+				Bad Request
+			</h2>
+		</div>
+		<p class="text-xs text-center md:text-sm text-gray-400">
+			Your request was malformed
+		</p>
+	</section>
+}
+
+
+templ Error400Index(){
+	@layout.Base(){
+		@Error400()
+	}
+}
+```
+
+This should looks good, now we can use it in the handler
+```go
+//Filename: internal/handlers/games.handlers.go
+
+func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
+	page := c.QueryParam("page")
+
+	if page == "" {
+		page = "0"
+	}
+
+	pageInt, err := strconv.Atoi(page)
+
+	if err != nil {
+		return renderView(c, errors_pages.Error400Index()) 
+	}
+
+	games, err := gh.GamesServices.GetGamesByPage(pageInt)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, "Something went wrong")
+	}
+
+
+	return renderView(c, gamesviews.GameIndex(games))
+}
+```
+
+***EXERCICE***
+You can do the same for 500 now.
+
+
+Next we should redesign this horrible list page.
+
+```go
+//Filename: internal/views/games_views/game.list.templ
+templ GameCard(game services.Game){
+    <div class="card">
+			<figure><img class="object-cover max-h-60 max-w-full" src={game.BackgroundImage} alt={game.Name} /></figure>
+			<div class="card-body">
+					<h2 class="card-title">{game.Name}</h2>
+					<p>{game.Released}</p>
+			</div>
+    </div>
+}
+
+templ GamesList(games []services.Game){
+    <div class="grid grid-cols-3 gap-4">
+        // Loop through games
+        for _, game := range games{
+            <div class="col">
+                @GameCard(game)
+            </div>
+        }
+    </div>
+}
+
+templ GameIndex(games []services.Game){
+    @layout.Base(){
+        <h1>Games</h1>
+        @GamesList(games)
+    }
+}
+
+```
+
+
+### Here HTMX Come
+
+Now that it looks fine, let's focus on a really cool features ```infinite scroll```, here HTMX come to play
+
+[Here](https://htmx.org/examples/infinite-scroll/) is an example of a infinite scroll in HTMX, look pretty simple isn't it.
+
+First let's install htmx, add this to the ```header``` of the layout template.
+
+```go
+//Filename: internal/views/layout/base.layout.templ
+<script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+```
+
+First we need to pass the currentPage from the backend to the frontend by changing the handler
+```go
+//Filename: internal/handlers/games.handlers.go
+return renderView(c, gamesviews.GameIndex(games)) -> return renderView(c, gamesviews.GameIndex(games, pageInt))
+```
+
+Then modifying
+
+```go
+//Filename: internal/views/games_views/game.list.templ
+
+templ GamesList(games []services.Game, currentPage int) {
+	<div id="game_list" class="grid grid-cols-3 gap-4">
+		// Loop through games
+		for i, game := range games {
+			if i == len(games) - 1 {
+				<div
+					id="load_more"
+					hx-trigger="revealed"
+					hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) }
+				>
+					@GameCard(game)
+				</div>
+			}
+			@GameCard(game)
+		}
+	</div>
+}
+
+templ GameIndex(games []services.Game, currentPage int) {
+	@layout.Base() {
+		@GamesList(games, currentPage)
+	}
+}
+```
+
+But what happens ! Our result has been in one card only but why ?
+
+Because by default HTMX replace the element from which you make the request we need to specify which [target](https://htmx.org/attributes/hx-target/) and how we want to [swap](https://htmx.org/attributes/hx-swap/) them.
+
+Also it will bug because it also send the ```<div id="game_list" class="grid grid-cols-3 gap-4">``` around it for each request we need to move it to the index
+
+We also need to send a new GameList when the page is more then 0.
+
+Which give us this 
+```go
+//Filename: internal/views/games_views/game.list.templ
+
+templ GamesList(games []services.Game, currentPage int) {
+	// Loop through games
+	for i, game := range games {
+		if i == len(games) - 1 {
+			<div id="load_more" hx-trigger="revealed" hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) } hx-target="#game_list" hx-swap="beforeend">
+				@GameCard(game)
+			</div>
+		}
+		@GameCard(game)
+	}
+}
+
+templ GameIndex(games []services.Game, currentPage int) {
+	@layout.Base() {
+		<div id="game_list" class="grid grid-cols-3 gap-4">
+			@GamesList(games, currentPage)
+		</div>
+	}
+}
+```
+
+Add it at the end of the end of the handlers before the first render return.
+
+```go
+//Filename: internal/handlers/games.handlers.go
+
+if pageInt > 0 {
+        return renderView(c, gamesviews.GamesList(games, pageInt))
+}
+
+```
+
+Also we can add ```hx-boost="once"``` so it only happens once and we can scroll back without causing a new request.
+
+And boom we got infinite scroll with few lines.
+
+Now that we are here we can also put ```hx-boost="true``` to the body so the anchor tag are now doing ajax request and not a full reload of the web app.
+
+### Some find tuning for you developement experience
+
+It would be cool not to have the need to run make run at every changes, that when [air](https://github.com/cosmtrek/air) comes along, with this binary we can define a config file in which it can run every command we want after certain files has been changed.
+
+First install air by going on their [github](https://github.com/cosmtrek/air).
+
+Run ```air init```, you should have now a ```.air.toml``` created.
+
+Let's modify the config files, first add a new extension files to watch one 
+```toml
+include_ext = ["go", "tpl", "tmpl", "html", "templ"]
+```
+
+And modify the bin and command to run on every reload
+
+```toml
+bin = "./bin/app"
+cmd = "make build"
+```
+
+Now we are fine if you run ```air```, it should restart at every changes.

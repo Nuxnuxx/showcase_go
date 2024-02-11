@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"net/http"
+	"fmt"
 	"strconv"
 
 	"github.com/Nuxnuxx/showcase_go/internal/services"
+	"github.com/Nuxnuxx/showcase_go/internal/views/errors_pages"
 	gamesviews "github.com/Nuxnuxx/showcase_go/internal/views/games_views"
 	"github.com/labstack/echo/v4"
 )
@@ -25,18 +26,29 @@ type GamesHandler struct {
 }
 
 func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
-	page, err := strconv.Atoi(c.QueryParam("page"))
+	page := c.QueryParam("page")
 
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid page")
+	if page == "" {
+		page = "0"
 	}
 
-	games, err := gh.GamesServices.GetGamesByPage(page)
+	pageInt, err := strconv.Atoi(page)
 
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, "Something went wrong")
+		return renderView(c, errors_pages.Error400Index())
 	}
 
+	games, err := gh.GamesServices.GetGamesByPage(pageInt)
 
-	return renderView(c, gamesviews.GameIndex(games))
+	if err != nil {
+		return renderView(c, errors_pages.Error500Index())
+	}
+
+	fmt.Println(pageInt)
+
+	if pageInt > 0 {
+			return renderView(c, gamesviews.GamesList(games, pageInt))
+	}
+	
+	return renderView(c, gamesviews.GameIndex(games, pageInt))
 }
