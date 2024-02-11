@@ -19,6 +19,7 @@ templ GamesList(games []services.Game, currentPage int) {
 	for i, game := range games {
 		if i == len(games) - 1 {
 			<div id="load_more" hx-trigger="revealed" hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) } hx-target="#game_list" hx-swap="beforeend" hx-boost="once">
+			@GameCard(game)
 			</div>
 		}
 		@GameCard(game)
@@ -27,7 +28,7 @@ templ GamesList(games []services.Game, currentPage int) {
 
 templ GameIndex(games []services.Game, currentPage int) {
 	@layout.Base() {
-		<div id="game_list" class="grid grid-cols-3 gap-4">
+		<div id="game_list" class="grid grid-cols-4 gap-4">
 			@GamesList(games, currentPage)
 		</div>
 	}

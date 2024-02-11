@@ -1010,7 +1010,7 @@ templ GamesList(games []services.Game, currentPage int) {
 
 templ GameIndex(games []services.Game, currentPage int) {
 	@layout.Base() {
-		<div id="game_list" class="grid grid-cols-3 gap-4">
+		<div id="game_list" class="grid grid-cols-4 gap-4">
 			@GamesList(games, currentPage)
 		</div>
 	}
@@ -1055,3 +1055,7 @@ cmd = "make build"
 ```
 
 Now we are fine if you run ```air```, it should restart at every changes.
+
+
+### Add Click on Card and new page on it
+### Maybe add customHTTPHandler from other project
