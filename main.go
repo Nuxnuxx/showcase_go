@@ -7,15 +7,13 @@ import (
 	"os"
 	"strings"
 
-	_ "github.com/jpfuentes2/go-env/autoload"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 
 	// GET API_KEY from .env file
 	API_KEY := os.Getenv("API_KEY")
-	// Remove quotes from API_KEY
-	API_KEY = strings.Trim(API_KEY, `"`)
 
 	// Build the URL
 	builder := strings.Builder{}

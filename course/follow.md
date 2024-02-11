@@ -35,14 +35,14 @@ What is RAWG : [Here](https://rawg.io/)
 This package his self explanatory, it just autoload what is in the ```.env``` automatically for us
 
 ```bash
-go get "github.com/jpfuentes2/go-env/autoload"
+go get "github.com/joho/godotenv"
 ```
 
 ```go
 // Filename: main.go
 import (
     ...
-    _ "github.com/jpfuentes2/go-env/autoload"
+    _ "github.com/joho/godotenv/autoload"
 )
 ```
 
@@ -53,8 +53,6 @@ import (
 
 // GET API_KEY from .env file
 API_KEY := os.Getenv("API_KEY")
-// Remove quotes from API_KEY
-API_KEY = strings.Trim(API_KEY, `"`)
 
 // Build the URL
 builder := strings.Builder{}
