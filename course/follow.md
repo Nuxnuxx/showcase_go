@@ -670,12 +670,16 @@ Now modify the handlers for the game list
 ```go
 //Filename: internal/handlers/game.handlers.go
 
-return c.JSON(200, games) -> return renderView(c, gamesviews.GameIndex(games))
+func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
+    ...
+
+    return c.JSON(200, games) -> return renderView(c, gamesviews.GameIndex(games))
+}
 ```
 
 ```make run``` and check on the same page we go earlier.
 
-You should see a ***beautiful*** list (joking) but it works, we have render our first HTML page
+You should see a ***beautiful*** list (joking) but it works, we have render our first HTML page.
 
 ### | Checkpoint |
 ```bash
