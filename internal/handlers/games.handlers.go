@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/Nuxnuxx/showcase_go/internal/services"
+	gamesviews "github.com/Nuxnuxx/showcase_go/internal/views/games_views"
+	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
 )
 
@@ -36,5 +38,7 @@ func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, "Something went wrong")
 	}
 
-	return c.JSON(200, games)
+
+	return renderView(c, gamesviews.GameIndex(games))
 }
+

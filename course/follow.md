@@ -567,7 +567,115 @@ Now if you can use the new endpoint we just created simply we can ```make run```
 http://localhost:8080?page=0
 ```
 
-## But the view folder, how can i be an HTML engineer without it
+## But the views folder, how can i be an HTML engineer without it
+
+Yes i forgot HTML engineer here we are, first lets start by adding some new package
+
+```bash
+go install github.com/a-h/templ/cmd/templ@latest // for the cli
+go get github.com/a-h/templ // for the code
+```
+the doc is [here](https://templ.guide/quick-start/installation/) if needed
+
+
+It is a template engine which is staticly typed it will help keep the codebase clear
+
+the extension ```.templ``` don't change the behavior of go we can use it as a normal go file like we would normally do
+
+So let's jump to our views folder and create a new folder in it call ```layout``` in which we will create a new file call ```base.layout.templ``` and write some HTML
+
+```go
+//Filename: internal/views/layout/base.layout.templ
+// dont miss it
+package layout
+
+templ Base() {
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta name="description" content="Lets go HTML Engineer"/>
+			<meta name="google" content="notranslate"/>
+			<link rel="stylesheet" href="/css/styles.css"/>
+			<title>Games App</title>
+            //Link for daisyui (dont use it in production)
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.2/dist/full.min.css" rel="stylesheet" type="text/css"/>
+            // Link to tailwindUI (dont use it in production)
+			<script src="https://cdn.tailwindcss.com"></script>
+		</head>
+		<body>
+            { children... }
+		</body>
+	</html>
+}
+```
+
+This will be the root of our website that we will integrate in it the navbar,main and also footer
+
+The interesting part is the ```children...``` which means that we can use it as a layout and everything we pass in will be at this place, better than word. Let's see by example:
+
+Now we need to have views for our games let get started with a view to show a list of games, create a new folder in ```views``` which we will call ```games_views``` and add a file ```game.list.templ```
+
+
+```go
+//Filename: internal/views/games_views/game.list.templ
+package gamesviews 
+
+templ GameCard(game services.Game){
+	<div>
+		<h2>{game.Name}</h2>
+		<p>{game.Released}</p>
+	</div>
+}
+
+templ GamesList(games []services.Game){
+	// a for loop from golang
+	for _, game := range games{
+		@GameCard(game)
+	}
+}
+
+templ GameIndex(games []services.Game){
+	@layout.Base(){
+		<h1>Games</h1>
+		@GamesList(games)
+	}
+}
+```
+
+Here the interesting parts, first the usage of ```layout.Base``` in the ```GameIndex``` and the for loop which looks exactly the same as in go, if you know go you know templ.
+
+
+We have finish for the folder ```views``` for the moment, we can now adapt our code to serve HTML and not JSON.
+
+Before that, to generate the template you need to run ```templ generate```.
+
+Now in the handlers for the game list we can change some lines and add a new files ```utils.go``` which will be all your utility function to render.
+
+```go
+//Filename: internal/handlers/utils.go
+
+func renderView(c echo.Context, cmp templ.Component) error {
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
+
+	return cmp.Render(c.Request().Context(), c.Response().Writer)
+}
+
+```
+
+This function serve one purpose, elimination all the boilerplate to render a templ template, we don't need to know every aspect of it.
+All we care is we pass a echo.Context and a component and it is render.
+
+Now modify the handlers for the game list
+```go
+//Filename: internal/handlers/game.handlers.go
+
+return c.JSON(200, games) -> return renderView(c, gamesviews.GameIndex(games))
+```
+
+```make run``` and check on the same page we go earlier.
+
+You should see a ***beautiful*** list (joking) but it works, we have render our first HTML page
 
 ### | Checkpoint |
 ```bash
