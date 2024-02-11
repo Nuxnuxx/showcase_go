@@ -100,3 +100,7 @@ test:
 ```
 
 ```make run``` it will build and then start the binary
+
+### ---- Checkpoint
+```git checkout 779bf031aa778ac5dbb42194b4cdbabee8fc93c5```
+### ---- Checkpoint
