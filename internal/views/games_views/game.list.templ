@@ -1,0 +1,25 @@
+package gamesviews
+
+import "github.com/Nuxnuxx/showcase_go/internal/services"
+import "github.com/Nuxnuxx/showcase_go/internal/views/layout"
+
+templ GameCard(game services.Game){
+	<div>
+		<h2>{game.Name}</h2>
+		<p>{game.Released}</p>
+	</div>
+}
+
+templ GamesList(games []services.Game){
+	// a for loop from golang
+	for _, game := range games{
+		@GameCard(game)
+	}
+}
+
+templ GameIndex(games []services.Game){
+	@layout.Base(){
+		<h1>Games</h1>
+		@GamesList(games)
+	}
+}
