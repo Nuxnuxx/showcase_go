@@ -5,20 +5,25 @@ import "github.com/Nuxnuxx/showcase_go/internal/views/layout"
 import "strconv"
 
 templ GameCard(game services.Game) {
-	<div class="card">
-		<figure><img class="object-cover max-h-60 max-w-full" src={ game.BackgroundImage } alt={ game.Name }/></figure>
+	<a href={templ.URL("/game/" + strconv.Itoa(game.ID))} class="card">
+		<figure><img class="object-cover max-h-60 max-w-full h-60" src={ game.BackgroundImage } alt={ game.Name }/></figure>
 		<div class="card-body">
 			<h2 class="card-title">{ game.Name }</h2>
 			<p>{ game.Released }</p>
 		</div>
-	</div>
+	</a>
 }
 
 templ GamesList(games []services.Game, currentPage int) {
 	// Loop through games
 	for i, game := range games {
 		if i == len(games) - 1 {
-			<div id="load_more" hx-trigger="revealed" hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) } hx-target="#game_list" hx-swap="beforeend" hx-boost="once">
+			<div id="load_more" 
+				hx-trigger="revealed" 
+				hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) } 
+				hx-target="#game_list" 
+				hx-swap="beforeend" 
+				hx-boost="once">
 			@GameCard(game)
 			</div>
 		}

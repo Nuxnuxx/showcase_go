@@ -1057,5 +1057,150 @@ cmd = "make build"
 Now we are fine if you run ```air```, it should restart at every changes.
 
 
-### Add Click on Card and new page on it
-### Maybe add customHTTPHandler from other project
+### The game detail page
+
+First we need to make a new function in our services for the game, let's create a function to retrieve a game by id.
+
+```go
+//Filename: internal/services/games.services.go
+
+func (gs *GameService) GetGamesByID(id int) (GameFullDetail, error){
+	// Make the url
+	builder := strings.Builder{}
+	builder.WriteString("https://api.rawg.io/api/games/")
+	builder.WriteString(strconv.Itoa(id))
+	builder.WriteString("?key=")
+	builder.WriteString(gs.ApiKey)
+
+	resp, err := http.Get(builder.String())
+
+	if err != nil {
+		return GameFullDetail{}, fmt.Errorf("Error making request: %v", err)
+	}
+
+	defer resp.Body.Close()
+
+	// This part bind the response to the struct
+	var response GameFullDetail
+
+	body, err := io.ReadAll(resp.Body)
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return GameFullDetail{}, fmt.Errorf("Error unmarshalling response: %v", err)
+	}
+
+	return response, nil
+}
+```
+
+We can't return a nil this time because the type ```Game``` is not a pointer such as below ere it was a array.
+
+And a new type which we will be bind to it
+```go
+//Filename: internal/services/games.services.go
+
+type GameFullDetail struct {
+    ID                    int               `json:"id"`
+    Slug                  string            `json:"slug"`
+    Name                  string            `json:"name"`
+    NameOriginal          string            `json:"name_original"`
+    Description           string            `json:"description"`
+    Metacritic            int               `json:"metacritic"`
+    MetacriticPlatforms   []MetacriticPlatform `json:"metacritic_platforms"`
+    Released              string            `json:"released"`
+    TBA                   bool              `json:"tba"`
+    Updated               string            `json:"updated"`
+    BackgroundImage       string            `json:"background_image"`
+    BackgroundImageAdditional string         `json:"background_image_additional"`
+    Website               string            `json:"website"`
+    Rating                float32              `json:"rating"`
+    RatingTop             int               `json:"rating_top"`
+    Reactions             map[string]interface{} `json:"reactions"`
+    Added                 int               `json:"added"`
+    AddedByStatus         map[string]interface{} `json:"added_by_status"`
+    Playtime              int               `json:"playtime"`
+    ScreenshotsCount      int               `json:"screenshots_count"`
+    MoviesCount           int               `json:"movies_count"`
+    CreatorsCount         int               `json:"creators_count"`
+    AchievementsCount     int               `json:"achievements_count"`
+    ParentAchievementsCount int          `json:"parent_achievements_count"`
+    RedditURL             string            `json:"reddit_url"`
+    RedditName            string            `json:"reddit_name"`
+    RedditDescription     string            `json:"reddit_description"`
+    RedditLogo            string            `json:"reddit_logo"`
+    RedditCount           int               `json:"reddit_count"`
+    TwitchCount           int            `json:"twitch_count"`
+    YoutubeCount          int            `json:"youtube_count"`
+    ReviewsTextCount      int            `json:"reviews_text_count"`
+    RatingsCount          int               `json:"ratings_count"`
+    SuggestionsCount      int               `json:"suggestions_count"`
+    AlternativeNames      []string          `json:"alternative_names"`
+    MetacriticURL         string            `json:"metacritic_url"`
+    ParentsCount          int               `json:"parents_count"`
+    AdditionsCount        int               `json:"additions_count"`
+    GameSeriesCount       int               `json:"game_series_count"`
+    ESRBRating            EsrbRating        `json:"esrb_rating"`
+    Platforms             []Platform    `json:"platforms"`
+}
+```
+
+After that we can create a handler to serve this page. 
+
+```go
+//Filename: internal/handlers/games.handlers.go
+
+func (gh *GamesHandler) GetGameById(c echo.Context) error {
+	id := c.Param("id")
+
+	idInt, err := strconv.Atoi(id)
+
+	if err != nil {
+		return renderView(c, errors_pages.Error400Index())
+	}
+
+	game, err := gh.GamesServices.GetGamesByID(idInt)
+
+	if err != nil {
+		fmt.Println(err)
+		return renderView(c, errors_pages.Error500Index())
+	}
+
+	return renderView(c, gamesviews.GamePageIndex(game))
+}
+```
+
+Don't forget to add our new function to the interface at the top of the file.
+
+Add a view to show the information we just retrieve 
+
+```go
+//Filename: internal/views/games_views/game.list.templ
+
+templ GamePage(game services.GameFullDetail){
+ <div class="max-w-4xl mx-auto shadow-md rounded-md p-6">
+        <h1 class="text-3xl font-bold mb-4">{game.Name}</h1>
+        <img src={game.BackgroundImage} alt={game.Name} class="w-full h-auto rounded-md mb-4"/>
+        <h2 class="text-2xl font-bold mb-2">{game.Name}</h2>
+        <p class="text-lg mb-4">Released: {game.Released}</p>
+        <p class="text-base mb-4">{game.Description}</p>
+				if (game.Website != ""){
+					<a target="_blank" href={templ.URL(game.Website)} class="btn">{game.Website}</a>
+				}
+    </div>
+}
+
+templ GamePageIndex(game services.GameFullDetail){
+	@layout.Base(){
+		@GamePage(game)
+	}
+}
+```
+
+And what we need to do now ?
+
+Yes add the it to the routes
+```go
+//Filename: internal/handlers/routes.go
+
+e.GET("/game/:id", gh.GetGameById)
+```

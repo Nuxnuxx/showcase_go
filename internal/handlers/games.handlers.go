@@ -12,6 +12,7 @@ import (
 
 type GamesServices interface {
 	GetGamesByPage(page int) ([]services.Game, error)
+	GetGamesByID(id int) (services.GameFullDetail, error)
 }
 
 func NewGamesHandlers(gs GamesServices) *GamesHandler {
@@ -47,8 +48,27 @@ func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
 	fmt.Println(pageInt)
 
 	if pageInt > 0 {
-			return renderView(c, gamesviews.GamesList(games, pageInt))
+		return renderView(c, gamesviews.GamesList(games, pageInt))
 	}
-	
+
 	return renderView(c, gamesviews.GameIndex(games, pageInt))
+}
+
+func (gh *GamesHandler) GetGameById(c echo.Context) error {
+	id := c.Param("id")
+
+	idInt, err := strconv.Atoi(id)
+
+	if err != nil {
+		return renderView(c, errors_pages.Error400Index())
+	}
+
+	game, err := gh.GamesServices.GetGamesByID(idInt)
+
+	if err != nil {
+		fmt.Println(err)
+		return renderView(c, errors_pages.Error500Index())
+	}
+
+	return renderView(c, gamesviews.GamePageIndex(game))
 }

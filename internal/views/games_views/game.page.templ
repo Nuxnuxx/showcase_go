@@ -1,0 +1,23 @@
+package gamesviews
+
+import "github.com/Nuxnuxx/showcase_go/internal/views/layout"
+import "github.com/Nuxnuxx/showcase_go/internal/services"
+
+templ GamePage(game services.GameFullDetail){
+ <div class="max-w-4xl mx-auto shadow-md rounded-md p-6">
+        <h1 class="text-3xl font-bold mb-4">{game.Name}</h1>
+        <img src={game.BackgroundImage} alt={game.Name} class="w-full h-auto rounded-md mb-4"/>
+        <h2 class="text-2xl font-bold mb-2">{game.Name}</h2>
+        <p class="text-lg mb-4">Released: {game.Released}</p>
+        <p class="text-base mb-4">{game.Description}</p>
+				if (game.Website != ""){
+					<a target="_blank" href={templ.URL(game.Website)} class="btn">{game.Website}</a>
+				}
+    </div>
+}
+
+templ GamePageIndex(game services.GameFullDetail){
+	@layout.Base(){
+		@GamePage(game)
+	}
+}

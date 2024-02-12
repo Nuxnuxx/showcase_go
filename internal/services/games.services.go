@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Nuxnuxx/showcase_go/internal/database"
@@ -64,6 +65,55 @@ type Game struct {
 	Platforms        []Platform  `json:"platforms"`
 }
 
+type MetacriticPlatform struct {
+    Metascore int    `json:"metascore"`
+    URL       string `json:"url"`
+}
+
+type GameFullDetail struct {
+    ID                    int               `json:"id"`
+    Slug                  string            `json:"slug"`
+    Name                  string            `json:"name"`
+    NameOriginal          string            `json:"name_original"`
+    Description           string            `json:"description"`
+    Metacritic            int               `json:"metacritic"`
+    MetacriticPlatforms   []MetacriticPlatform `json:"metacritic_platforms"`
+    Released              string            `json:"released"`
+    TBA                   bool              `json:"tba"`
+    Updated               string            `json:"updated"`
+    BackgroundImage       string            `json:"background_image"`
+    BackgroundImageAdditional string         `json:"background_image_additional"`
+    Website               string            `json:"website"`
+    Rating                float32              `json:"rating"`
+    RatingTop             int               `json:"rating_top"`
+    Reactions             map[string]interface{} `json:"reactions"`
+    Added                 int               `json:"added"`
+    AddedByStatus         map[string]interface{} `json:"added_by_status"`
+    Playtime              int               `json:"playtime"`
+    ScreenshotsCount      int               `json:"screenshots_count"`
+    MoviesCount           int               `json:"movies_count"`
+    CreatorsCount         int               `json:"creators_count"`
+    AchievementsCount     int               `json:"achievements_count"`
+    ParentAchievementsCount int          `json:"parent_achievements_count"`
+    RedditURL             string            `json:"reddit_url"`
+    RedditName            string            `json:"reddit_name"`
+    RedditDescription     string            `json:"reddit_description"`
+    RedditLogo            string            `json:"reddit_logo"`
+    RedditCount           int               `json:"reddit_count"`
+    TwitchCount           int            `json:"twitch_count"`
+    YoutubeCount          int            `json:"youtube_count"`
+    ReviewsTextCount      int            `json:"reviews_text_count"`
+    RatingsCount          int               `json:"ratings_count"`
+    SuggestionsCount      int               `json:"suggestions_count"`
+    AlternativeNames      []string          `json:"alternative_names"`
+    MetacriticURL         string            `json:"metacritic_url"`
+    ParentsCount          int               `json:"parents_count"`
+    AdditionsCount        int               `json:"additions_count"`
+    GameSeriesCount       int               `json:"game_series_count"`
+    ESRBRating            EsrbRating        `json:"esrb_rating"`
+    Platforms             []Platform    `json:"platforms"`
+}
+
 type Response struct {
 	Count    int    `json:"count"`
 	Next     string `json:"next"`
@@ -101,4 +151,32 @@ func (gs *GameService) GetGamesByPage(page int) ([]Game, error) {
 	}
 
 	return response.Results, nil
+}
+
+func (gs *GameService) GetGamesByID(id int) (GameFullDetail, error){
+	// Make the url
+	builder := strings.Builder{}
+	builder.WriteString("https://api.rawg.io/api/games/")
+	builder.WriteString(strconv.Itoa(id))
+	builder.WriteString("?key=")
+	builder.WriteString(gs.ApiKey)
+
+	resp, err := http.Get(builder.String())
+
+	if err != nil {
+		return GameFullDetail{}, fmt.Errorf("Error making request: %v", err)
+	}
+
+	defer resp.Body.Close()
+
+	// This part bind the response to the struct
+	var response GameFullDetail
+
+	body, err := io.ReadAll(resp.Body)
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return GameFullDetail{}, fmt.Errorf("Error unmarshalling response: %v", err)
+	}
+
+	return response, nil
 }

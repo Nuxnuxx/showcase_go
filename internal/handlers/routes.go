@@ -9,6 +9,7 @@ import (
 func SetupRoutes(e *echo.Echo, gh *GamesHandler) {
 	e.GET("/", HomeHandler)
 	e.GET("/list", gh.GetGamesByPage)
+	e.GET("/game/:id", gh.GetGameById)
 }
 
 func HomeHandler(c echo.Context) error {
