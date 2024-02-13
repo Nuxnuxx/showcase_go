@@ -1209,7 +1209,7 @@ e.GET("/game/:id", gh.GetGameById)
 
 For the authentification we will use [JsonWebToken](https://jwt.io/),
 
-<!-- TODO: explain JWT in few word -->
+Jwt will be use here to store a json object on the client side which will be signed by a secret key and we will check that it is a valid token on back to do [Authentification](https://www.onelogin.com/learn/authentication-vs-authorization#:~:text=Authentication%20vs.-,Authorization,authorization%20determines%20their%20access%20rights.)
 
 Echo provide a built-in middleware to get started with ```JWT```.
 ```bash
@@ -1226,14 +1226,14 @@ func NewAuthServices(u User, uStore database.Store, secretKey string) *AuthServi
 	return &AuthService{
 		User:      u,
 		UserStore: uStore,
-		SecretKey: secretKey,
+		SecretKey: []byte(secretKey),
 	}
 }
 
 type AuthService struct {
 	User      User
 	UserStore database.Store
-	SecretKey string
+	SecretKey []byte 
 }
 
 type User struct {
@@ -1393,7 +1393,7 @@ func (au *AuthHandler) Register(c echo.Context) error {
 }
 ```
 
-So here we are binding the whole body we receive from the form into a fresly new user variable then we create the user and if there is no error we redirect to the home page.
+Here we get the data we get from the form and pass it to a struct user to then create it with our function.
 
 We still have some work to do on the view, just to add the endpoint in which we want to send the post request here ```<form action="/register" method="post">```.
 
@@ -1470,23 +1470,33 @@ So now we have a error which we can cast to validateErrors object and use it to 
 ```go
 //Filename: internal/services/utils.go
 
-func CreateHumanErrors(err error) map[string][]string {
-	errors := make(map[string][]string)
+type HumanErrors struct {
+    Value 	 string
+    Error 	 string
+}
+
+func CreateHumanErrors(err error) map[string]HumanErrors {
+	errors := make(map[string]HumanErrors)
 
 	for _, v := range err.(validator.ValidationErrors) {
-		errors[v.Field()] = append(errors[v.Field()],
-			fmt.Sprintf("%s", v.Value()),
-			fmt.Sprintf("%s", v.Tag()),
-			fmt.Sprintf("%s", v.Param()),
-			fmt.Sprintf("%s", strings.ToLower(strings.Split(v.Namespace(), ".")[1])),
-		)
+		error := strings.Builder{}
+		error.WriteString(fmt.Sprintf("%s should be %s %s",
+			strings.Split(v.Namespace(), ".")[1],
+			v.Param(),
+			v.Tag(),
+		))
+
+		errors[strings.ToLower(v.Field())] = HumanErrors{
+			Value: v.Value().(string),
+			Error: error.String(),
+		}
 	}
 
 	return errors
 }
 ```
 
-This function will help us get a map and not a simple error.
+This function will help us get a map and not a simple error which give us more human readable error for the user and the old value if we need to put it back to the input.
 
 And modify the inner if of validation to return the register components with the map of errors
 
@@ -1506,7 +1516,7 @@ now we just need to modify some part of the view and it should work fine
 //Filename: internal/views/auth_views/auth.register.templ
 
 templ Register(humanErrors map[string]services.HumanErrors) {
-		<form hx-post="/register" hx-swap="outerHTML">
+		<form hx-post="/register" hx-boost="true" hx-swap="outerHTML">
 			<div class="mb-4">
 				<label for="email" class="block text-gray-700">Email:</label>
 				<input type="email" id="email" name="email" required class="form-input mt-1 block w-full" />
@@ -1549,3 +1559,300 @@ templ RegisterIndex() {
 We use htmx to rerender only the form if there is an error and we can check validation as same as in other languages.
 
 Now we can do all the part of `JWT` when we register in our app.
+
+First we need to create the token and store it client-side after we are sure the user has really benn created.
+
+We have forgot something, we don't check if the email already exist and it should cause a error 500 when creating a user that already exist, let's get on it.
+
+```go
+//Filename: internal/services/auth.services.go
+
+func (as *AuthService) CheckEmail(email string) (User, error) {
+
+	query := `SELECT email, password, username FROM users
+		WHERE email = ?`
+
+	stmt, err := as.UserStore.Db.Prepare(query)
+	if err != nil {
+		return User{}, err
+	}
+
+	defer stmt.Close()
+
+	as.User.Email = email
+	err = stmt.QueryRow(
+		as.User.Email,
+	).Scan(
+		&as.User.Email,
+		&as.User.Password,
+		&as.User.Username,
+	)
+
+	if err != nil {
+		return User{}, err
+	}
+
+	return as.User, nil
+}
+```
+
+And we now use it to check that the user already exist or not in our handlers.
+
+```go
+
+if err := c.Validate(user); err != nil {
+    ////
+}
+
+userInDatabase, err := au.AuthServices.CheckEmail(user.Email)
+
+if userInDatabase != (services.User{}) {
+    humanErrors := map[string]services.HumanErrors{
+        "email": {
+            Error: "Email already exists",
+            Value: user.Email,
+        },
+    }
+
+    return renderView(c, authviews.Register(humanErrors))
+}
+```
+
+Now the user will receive a error to show him that he already as an account.
+
+
+```go
+//Filename: internal/handlers/auth.handlers.go
+func (au *AuthHandler) Register(c echo.Context) error {
+    ////
+
+    token, err := au.AuthServices.GenerateToken(user)
+
+    if err != nil {
+        return renderView(c, errors_pages.Error500Index())
+    }
+
+    cookie := http.Cookie{
+        Name: "token",
+        Value: token,
+        Expires: time.Now().Add(24 * time.Hour),
+    }
+
+    c.SetCookie(&cookie)
+
+    // INFO: To redirect when using HTMX you need to set the HX-Redirect header
+    c.Response().Header().Set("HX-Redirect", "/")
+    c.Response().WriteHeader(http.StatusOK)
+    return nil
+}
+```
+
+We also need the GenerateToken function we just use to create the token
+
+```go
+//Filename: internal/services/auth.services.go
+
+type JwtCustomClaims struct {
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
+
+func (as *AuthService) GenerateToken(user User) (string, error) {
+	claims := &JwtCustomClaims{
+		Email:    user.Email,
+		Username: user.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+		},
+	}
+
+	signedToken, err := token.SignedString(as.SecretKey)
+
+	if err != nil {
+		return "", err
+	}
+
+	return signedToken, nil
+}
+```
+
+The token JWT work has defined here, we create claims which are the data that will contains the tokenthen we register a timestamp of now and and an expire time 24 hours later, to make sure that if the token leaks it will expire at a times, after that we sign it with our secret key.
+
+Now that we have the cookies store client side we need to create a protected routes and check that the token is valid.
+
+We will also need the secret key from the services of auth.
+
+```go
+//Filename: internal/services/auth.services.go
+
+func (as *AuthService) GetSecretKey() string {
+	return as.SecretKey
+}
+```
+
+Also put in the interface of the handlers
+
+
+```go
+//Filename: internal/handlers/auth.handlers.go
+
+type AuthServices interface {
+	GetSecretKey() string
+    ///
+}
+```
+
+Now we can create our new routes which will be protected
+
+```go
+//Filename: internal/handlers/routes.go
+
+protectedRoute := e.Group("/protected", echojwt.WithConfig(echojwt.Config{
+    NewClaimsFunc: func(c echo.Context) jwt.Claims {
+        return new(services.JwtCustomClaims)
+    },
+    SigningKey: as.AuthServices.GetSecretKey(),
+    TokenLookup: "cookie:token",
+}))
+
+protectedRoute.GET("/", HomeHandler)
+```
+
+Here we pass the new claims type we just create, the signing key from the auth services to decrypt it, and where to find the token in the incoming request.
+
+And you can also refacto all the place where you have a ```return renderView(c, ErrorXXX)``` to add just before the good status on the Response
+
+```go
+// Everywhere
+c.Response().WriteHeader(correct status)
+return renderView(/////)
+```
+
+Now we can do the most simple routes, a profil page. first modify the routes protected by that 
+```go
+//Filename: internal/handlers/routes.go
+protectedRoute.GET("/", HomeHandler) -> protectedRoute.GET("/profil", as.Profil)
+```
+
+Then we can create our new handler
+
+```go
+//Filename: internal/handlers/auth.handlers.go
+
+func (au *AuthHandler) Profil (c echo.Context) error {
+	token, ok := c.Get("user").(*jwt.Token)
+
+	if !ok {
+		log.Errorf("Error getting claims from token: %v", token)
+		return renderView(c, errors_pages.Error401Index())
+	}
+
+	claims, ok := token.Claims.(*services.JwtCustomClaims)
+
+	if !ok {
+		log.Errorf("Error getting claims from token: %v", token)
+		return renderView(c, errors_pages.Error401Index())
+	}
+
+	user := services.User{
+		Email:    claims.Email,
+		Username: claims.Username,
+	}
+
+	return renderView(c, authviews.ProfilIndex(user))
+}
+```
+
+Now we need to add a 401 page to the error pages.
+
+After that we can also create our profilIndex.
+
+```go
+//Filename: internal/views/auth_views/auth.register.templ
+
+templ Profil(user services.User){
+ <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+    <div class="p-6">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-2">Profile Information</h2>
+      <div class="space-y-4">
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+          <p class="text-lg font-semibold text-gray-900" id="username">JohnDoe</p>
+        </div>
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+          <p class="text-lg font-semibold text-gray-900" id="email">johndoe@example.com</p>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+templ ProfilIndex(user services.User){
+	@layout.Base(){
+		@Profil(user)
+	}
+}
+```
+
+And modify the navbar to point to the good endpoint and it will work fine.
+
+So let's do the login page now, so create a new handler.
+
+```go
+//Filename: internal/handlers/auth.handlers.go
+
+func (au *AuthHandler) Login(c echo.Context) error {
+	return renderView(c, authviews.LoginIndex())
+}
+```
+
+And create the form that come with it in a file ```auth.login.templ``` in the auth views folder. 
+
+```go
+//Filename: internal/views/auth_views/auth.login.templ
+
+templ Login(humanErrors map[string]services.HumanErrors) {
+		<form hx-post="/register" hx-boost="true" hx-swap="outerHTML">
+			<div class="mb-4">
+				<label for="email" class="block text--700">Email:</label>
+				<input type="email" id="email" name="email" required class="form-input mt-1 block w-full" />
+				if human, ok := humanErrors["email"]; ok {
+					<div class="text-red-500 text-sm">{human.Error}</div>
+				}
+			</div>
+			<div class="mb-4">
+				<label for="password" class="block text-white-700">Password:</label>
+				<input type="password" id="password" name="password" required class="form-input mt-1 block w-full" />
+				<div class="text-sm"> 8 - 50 characters, at least one letter, one number, and one special character</div>
+				if human, ok := humanErrors["password"]; ok {
+					<div class="text-red-500 text-sm">{human.Error}</div>
+				}
+			</div>
+			<div class="mb-4">
+				<button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Register</button>
+			</div>
+		</form>
+}
+
+templ LoginIndex() {
+	@layout.Base() {
+		<div class="p-8 rounded shadow-md w-full max-w-md mx-auto">
+			<h2 class="text-2xl font-semibold mb-4">User Registration</h2>
+			@Login(nil)
+		</div>
+	}
+}
+```
+
+Then we declare it in the `setupRoutes` function.
+
+```go
+//Filename: internal/handlers/routes.go
+
+e.GET("/login", as.Login)
+```
+
+Notice, you can go to login and register page, even if you are connected, let's fix that with a middleware.

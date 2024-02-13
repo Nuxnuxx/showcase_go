@@ -10,13 +10,16 @@ import (
 	"github.com/go-playground/validator"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
 	e := echo.New()
 
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
-	PORT := flag.String("port", ":" + os.Getenv("PORT"), "port to run the server on")
+	PORT := flag.String("port", ":"+os.Getenv("PORT"), "port to run the server on")
 
 	store, err := database.NewStore(os.Getenv("DB_NAME"))
 

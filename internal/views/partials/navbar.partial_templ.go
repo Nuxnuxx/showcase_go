@@ -23,7 +23,7 @@ func NavBar() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav class=\"navbar bg-primary text-primary-content fixed top-0 z-10\"><div class=\"navbar-start\"><a hx-swap=\"transition:true\" class=\"btn btn-ghost text-xl\" href=\"/\">Games app</a></div><div class=\"navbar-end\"><a class=\"btn btn-ghost text-lg\" href=\"/\">Home</a> <a class=\"btn btn-ghost text-lg\" href=\"/list\">List</a> <a class=\"btn btn-ghost text-lg\" href=\"/liked\">Liked</a> <a class=\"btn btn-ghost text-lg\" href=\"/profil\">Profil</a></div></nav>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<nav class=\"navbar bg-primary text-primary-content fixed top-0 z-10\"><div class=\"navbar-start\"><a hx-swap=\"transition:true\" class=\"btn btn-ghost text-xl\" href=\"/\">Games app</a></div><div class=\"navbar-end\"><a class=\"btn btn-ghost text-lg\" href=\"/\">Home</a> <a class=\"btn btn-ghost text-lg\" href=\"/list\">List</a> <a class=\"btn btn-ghost text-lg\" href=\"/liked\">Liked</a> <a class=\"btn btn-ghost text-lg\" href=\"/protected/profil\">Profil</a></div></nav>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

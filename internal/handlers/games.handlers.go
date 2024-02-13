@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/Nuxnuxx/showcase_go/internal/services"
@@ -42,6 +43,7 @@ func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
 	games, err := gh.GamesServices.GetGamesByPage(pageInt)
 
 	if err != nil {
+		c.Response().WriteHeader(http.StatusInternalServerError)
 		return renderView(c, errors_pages.Error500Index())
 	}
 
@@ -58,6 +60,7 @@ func (gh *GamesHandler) GetGameById(c echo.Context) error {
 	idInt, err := strconv.Atoi(id)
 
 	if err != nil {
+		c.Response().WriteHeader(http.StatusBadRequest)
 		return renderView(c, errors_pages.Error400Index())
 	}
 
@@ -65,6 +68,7 @@ func (gh *GamesHandler) GetGameById(c echo.Context) error {
 
 	if err != nil {
 		fmt.Println(err)
+		c.Response().WriteHeader(http.StatusInternalServerError)
 		return renderView(c, errors_pages.Error500Index())
 	}
 
