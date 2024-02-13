@@ -7,12 +7,14 @@ import (
 	"github.com/Nuxnuxx/showcase_go/internal/database"
 	"github.com/Nuxnuxx/showcase_go/internal/handlers"
 	"github.com/Nuxnuxx/showcase_go/internal/services"
+	"github.com/go-playground/validator"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
 	e := echo.New()
+
 
 	PORT := flag.String("port", ":" + os.Getenv("PORT"), "port to run the server on")
 
@@ -22,10 +24,15 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
+	e.Validator = &services.CustomValidator{Validator: validator.New()}
+
 	gameServices := services.NewGamesServices(services.Game{}, store, os.Getenv("API_KEY"))
 	gameHandler := handlers.NewGamesHandlers(gameServices)
 
-	handlers.SetupRoutes(e, gameHandler)
+	authServices := services.NewAuthServices(services.User{}, store, os.Getenv("SECRET_KEY"))
+	authHandler := handlers.NewAuthHandler(authServices)
+
+	handlers.SetupRoutes(e, gameHandler, authHandler)
 
 	// Start the server
 	e.Logger.Fatal(e.Start(*PORT))

@@ -45,8 +45,6 @@ func (gh *GamesHandler) GetGamesByPage(c echo.Context) error {
 		return renderView(c, errors_pages.Error500Index())
 	}
 
-	fmt.Println(pageInt)
-
 	if pageInt > 0 {
 		return renderView(c, gamesviews.GamesList(games, pageInt))
 	}

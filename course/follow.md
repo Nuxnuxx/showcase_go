@@ -1198,9 +1198,354 @@ templ GamePageIndex(game services.GameFullDetail){
 
 And what we need to do now ?
 
-Yes add the it to the routes
+Yes add it to the routes
 ```go
 //Filename: internal/handlers/routes.go
 
 e.GET("/game/:id", gh.GetGameById)
 ```
+
+# Authentification
+
+For the authentification we will use [JsonWebToken](https://jwt.io/),
+
+<!-- TODO: explain JWT in few word -->
+
+Echo provide a built-in middleware to get started with ```JWT```.
+```bash
+go get github.com/labstack/echo-jwt/v4
+```
+
+After that we have all we need to our authentification, so we can create a new services called `auth.services.go` and start up it
+
+```go
+//Filename: internal/services/auth.services.go
+
+func NewAuthServices(u User, uStore database.Store, secretKey string) *AuthService {
+
+	return &AuthService{
+		User:      u,
+		UserStore: uStore,
+		SecretKey: secretKey,
+	}
+}
+
+type AuthService struct {
+	User      User
+	UserStore database.Store
+	SecretKey string
+}
+
+type User struct {
+	ID 		 int    `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+```
+
+After that we can add the first important function which have to goal to create a new user
+
+```go
+//Filename: internal/services/auth.services.go
+
+func (as *AuthService) CreateUser(u User) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), 8) // Hash the password because we are not criminal
+	if err != nil {
+		return err
+	}
+
+	stmt := `INSERT INTO users(email, password, username) VALUES($1, $2, $3)`
+
+	_, err = as.UserStore.Db.Exec(
+		stmt,
+		u.Email,
+		string(hashedPassword),
+		u.Username,
+	)
+
+	return err
+}
+```
+
+Then we can create the handlers that come with it ```auth.handlers.go``` and start up it too
+```go
+
+type AuthServices interface {
+	CreateUser(user services.User) error
+}
+
+func NewAuthHandler(as AuthServices) *AuthHandler {
+
+	return &AuthHandler{
+		AuthServices: as,
+	}
+}
+
+type AuthHandler struct {
+	AuthServices AuthServices 
+}
+```
+
+And add a handler that first show the form to the user
+```go
+//Filename: internal/services/auth.services.go
+
+func (au *AuthHandler) Register(c echo.Context) error {
+	return renderView(c, authviews.RegisterIndex())
+}
+```
+
+Then create the view we use in the return, create a new folder in views called `auth_views` and a file named `auth.register.templ` then create the components has we always has done
+
+```go
+//Filename: internal/views/auth_views/auth.register.templ
+
+templ Register() {
+	<div class="bg-white p-8 rounded shadow-md w-full max-w-md">
+		<h2 class="text-2xl font-semibold mb-4">User Registration</h2>
+		<form action="" method="post">
+			<div class="mb-4">
+				<label for="email" class="block text-gray-700">Email:</label>
+				<input type="email" id="email" name="email" required class="form-input mt-1 block w-full" />
+			</div>
+			<div class="mb-4">
+				<label for="username" class="block text-gray-700">Username:</label>
+				<input type="text" id="username" name="username" required class="form-input mt-1 block w-full" />
+			</div>
+			<div class="mb-4">
+				<label for="password" class="block text-gray-700">Password:</label>
+				<input type="password" id="password" name="password" required class="form-input mt-1 block w-full" />
+			</div>
+			<div class="mb-4">
+				<button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Register</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ RegisterIndex() {
+	@layout.Base() {
+		@Register()
+	}
+}
+```
+
+From that we can add those new features to the routes by adding the new handlers and create new endpoint
+
+```go
+//Filename: internal/handlers/routes.go
+
+func SetupRoutes(e *echo.Echo, gh *GamesHandler, as *AuthHandler) {
+	e.GET("/", HomeHandler)
+	e.GET("/list", gh.GetGamesByPage)
+	e.GET("/game/:id", gh.GetGameById)
+
+	e.GET("/register", as.Register)
+}
+```
+
+Now it show an error in the main, that because we need to initiate the new service and handler to pass it to the setupRoutes function
+
+```go
+//Filename: main.go
+gameHandler := ...
+
+authServices := services.NewAuthServices(services.User{}, store, os.Getenv("SECRET_KEY"))
+authHandler := handlers.NewAuthHandler(authServices)
+
+handlers.SetupRoutes(e, gameHandler, authHandler)
+```
+
+And add a new SECRET_KEY in the `.env` file too.
+
+
+For now our form doesn't do anything so let's make it functional, add a post endpoint to the setupRoutes
+
+```go
+//Filename: internal/handlers/routes.go
+
+e.POST("/register", as.Register)
+```
+
+But what we use the same handler for the post and get, and yes we will handle the post send in the same, let's check how it works
+
+```go
+//Filename: internal/services/auth.services.go
+
+func (au *AuthHandler) Register(c echo.Context) error {
+	if c.Request().Method == "POST" {
+		user := services.User{
+			Email:    c.FormValue("email"),
+			Username: c.FormValue("username"),
+			Password: c.FormValue("password"),
+		}
+
+		err := au.AuthServices.CreateUser(user)
+
+		if err != nil {
+			return renderView(c, errors_pages.Error500Index())
+		}
+
+		return c.Redirect(http.StatusSeeOther, "/")
+	}
+	return renderView(c, authviews.RegisterIndex())
+}
+```
+
+So here we are binding the whole body we receive from the form into a fresly new user variable then we create the user and if there is no error we redirect to the home page.
+
+We still have some work to do on the view, just to add the endpoint in which we want to send the post request here ```<form action="/register" method="post">```.
+
+Now it works you should be redirect to the homepage.
+
+But we still have to handle errors, use JWT to create protected routes and store the token on the client side.
+
+### Handle errors on form
+
+We will use the built-in [validator](https://echo.labstack.com/docs/request#validate-data) from echo to handle those, we need to add our constraints to the struct 
+
+Before that just need to install the validator framework
+
+```bash
+go get github.com/go-playground/validator
+```
+
+```go
+//Filename: internal/services/auth.services.go
+
+type User struct {
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,min=3,max=20"`
+	Password string `json:"password" validate:"required,min=8,max=20"`
+}
+```
+
+This is self-explanatory, we check that the email is a valid email, and limit the size of username and password.
+
+Now we create a custom validator in a new file ```utils.go``` in the services folder
+
+```go
+//Filename: internal/services/utils.go
+
+type (
+	CustomValidator struct {
+		Validator *validator.Validate
+	}
+)
+
+func (cv *CustomValidator) Validate(i interface{}) error {
+	if err := cv.Validator.Struct(i); err != nil {
+		return err
+	}
+	return nil 
+}
+```
+
+Now we need to make the echo server aware of the new validator we just create.
+
+```go
+//Filename: main.go
+e.Validator = &services.CustomValidator{Validator: validator.New()}
+
+gameServices := ....
+```
+
+and now we can return a 400 if the value don't fill the constraint we set before
+
+```go
+//Filename: internal/services/auth.services.go
+user := services.User{
+    ////
+}
+
+if err := c.Validate(user); err != nil {
+    return renderView(c, errors_pages.Error400Index()) }
+```
+
+But it is not enough and the user cannot know which error has cause it.
+
+So now we have a error which we can cast to validateErrors object and use it to build the errors message to the user we need one function in the ```utils.go``` services file
+
+```go
+//Filename: internal/services/utils.go
+
+func CreateHumanErrors(err error) map[string][]string {
+	errors := make(map[string][]string)
+
+	for _, v := range err.(validator.ValidationErrors) {
+		errors[v.Field()] = append(errors[v.Field()],
+			fmt.Sprintf("%s", v.Value()),
+			fmt.Sprintf("%s", v.Tag()),
+			fmt.Sprintf("%s", v.Param()),
+			fmt.Sprintf("%s", strings.ToLower(strings.Split(v.Namespace(), ".")[1])),
+		)
+	}
+
+	return errors
+}
+```
+
+This function will help us get a map and not a simple error.
+
+And modify the inner if of validation to return the register components with the map of errors
+
+```go
+//Filename: internal/services/auth.services.go
+
+if err := c.Validate(user); err != nil {
+    humanErrors := services.CreateHumanErrors(err)
+
+    return renderView(c, authviews.Register(humanErrors))
+}
+```
+
+now we just need to modify some part of the view and it should work fine
+
+```go
+//Filename: internal/views/auth_views/auth.register.templ
+
+templ Register(humanErrors map[string]services.HumanErrors) {
+		<form hx-post="/register" hx-swap="outerHTML">
+			<div class="mb-4">
+				<label for="email" class="block text-gray-700">Email:</label>
+				<input type="email" id="email" name="email" required class="form-input mt-1 block w-full" />
+				if human, ok := humanErrors["email"]; ok {
+					<div class="text-red-500 text-sm">{human.Error}</div>
+				}
+			</div>
+			<div class="mb-4">
+				<label for="username" class="block text-gray-700">Username:</label>
+				<input type="text" id="username" name="username" required class="form-input mt-1 block w-full" />
+				<div class="text-sm"> 3 - 20 characters, letters, numbers, and underscores only</div>
+				if human, ok := humanErrors["username"]; ok {
+					<div class="text-red-500 text-sm">{human.Error}</div>
+				}
+			</div>
+			<div class="mb-4">
+				<label for="password" class="block text-gray-700">Password:</label>
+				<input type="password" id="password" name="password" required class="form-input mt-1 block w-full" />
+				<div class="text-sm"> 8 - 50 characters, at least one letter, one number, and one special character</div>
+				if human, ok := humanErrors["password"]; ok {
+					<div class="text-red-500 text-sm">{human.Error}</div>
+				}
+			</div>
+			<div class="mb-4">
+				<button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Register</button>
+			</div>
+		</form>
+}
+
+templ RegisterIndex() {
+	@layout.Base() {
+		<div class="bg-white p-8 rounded shadow-md w-full max-w-md">
+			<h2 class="text-2xl font-semibold mb-4">User Registration</h2>
+			@Register(nil)
+		</div>
+	}
+}
+```
+
+We use htmx to rerender only the form if there is an error and we can check validation as same as in other languages.
+
+Now we can do all the part of `JWT` when we register in our app.
