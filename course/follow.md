@@ -2139,3 +2139,82 @@ func (ah *AuthHandler) Logout(c echo.Context) error {
 ```
 
 And it should works fine.
+
+# New Features
+
+First we will implement the liked page, we need a table to store the games per user.
+
+```go
+//Filename: internal/database/database.go
+
+stmt = `CREATE TABLE IF NOT EXISTS user_liked_games (
+user_id INT,
+liked_game_id INT,
+PRIMARY KEY (user_id, liked_game_id),
+FOREIGN KEY (user_id) REFERENCES users(id),
+FOREIGN KEY (liked_game_id) REFERENCES games(id)
+);`
+
+_, err = db.Exec(stmt)
+
+if err != nil {
+    return err
+}
+```
+
+Now that we have our new table, we can create the service function to insert new value to it.
+
+```go
+//Filename: internal/services/game.service_test.go
+
+func (gs *GameService) LikeGameById(id, idUser int) error {
+
+	query := `INSERT INTO user_liked_games (user_id, liked_game_id) VALUES($1, $2)`
+
+	_, err := gs.GameStore.Db.Exec(
+		query,
+		idUser,
+		id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+```
+
+We also need a function in our auth services to get the ID of the user
+
+```go
+//Filename: internal/services/auth.services.go
+
+func (as *AuthService) GetUserId(email string) (int, error) {
+	query := `SELECT id FROM users WHERE email = ?`
+
+	stmt, err := as.UserStore.Db.Prepare(query)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer stmt.Close()
+
+	var id int
+
+	err = stmt.QueryRow(email).Scan(&id)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+```
+
+Now that we have all we need let's get to the job of doing the handlers for it
+
+```go
+
+```

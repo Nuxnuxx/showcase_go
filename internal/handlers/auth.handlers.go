@@ -18,6 +18,7 @@ type AuthServices interface {
 	CheckEmail(email string) (services.User, error)
 	CreateUser(user services.User) error
 	GenerateToken(user services.User) (string, error)
+	GetUserId(email string) (int, error)
 }
 
 func NewAuthHandler(as AuthServices) *AuthHandler {

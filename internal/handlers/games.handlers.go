@@ -13,6 +13,8 @@ import (
 type GamesServices interface {
 	GetGamesByPage(page int) ([]services.Game, error)
 	GetGamesByID(id int) (services.GameFullDetail, error)
+	LikeGameByID(id, idUser int) error
+	GetGamesLikedByUser(id int) ([]services.GameFullDetail, error)
 }
 
 func NewGamesHandlers(gs GamesServices) *GamesHandler {

@@ -4,27 +4,55 @@ import "github.com/Nuxnuxx/showcase_go/internal/services"
 import "github.com/Nuxnuxx/showcase_go/internal/views/layout"
 import "strconv"
 
+templ LikeButton(id int, liked bool) {
+	<form hx-post="/protected/liked" hx-swap="outerHTML">
+		<input type="hidden" name="id" value={ strconv.Itoa(id) }/>
+		<button
+			type="submit"
+			class="px-4 py-2 bg-green-500 text-white rounded-md shadow-md hover:bg-green-600 focus:outline-none focus:bg-green-600"
+		>
+			<svg
+				class={ "w-6 h-6 inline-block text-white-500 " , templ.KV("text-red-500", liked) }
+				xmlns=" http://www.w3.org/2000/svg"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M12 21l-1.875-1.875C5.343 14.671 2 11.145 2 7c0-2.598 2.102-4.7 4.7-4.7 1.56 0 3.06.77 4 2 .94-1.23 2.44-2 4-2 2.598 0 4.7 2.102 4.7 4.7 0 4.145-3.343 7.671-8.125 12.125L12 21z"
+				></path>
+			</svg>
+		</button>
+	</form>
+}
+
 templ GameCard(game services.Game) {
-	<a href={templ.URL("/game/" + strconv.Itoa(game.ID))} class="card">
+	<div class="card">
 		<figure><img class="object-cover max-h-60 max-w-full h-60" src={ game.BackgroundImage } alt={ game.Name }/></figure>
-		<div class="card-body">
+		<a href={ templ.URL("/game/" + strconv.Itoa(game.ID)) } class="card-body">
 			<h2 class="card-title">{ game.Name }</h2>
 			<p>{ game.Released }</p>
-		</div>
-	</a>
+		</a>
+		@LikeButton(game.ID, false)
+	</div>
 }
 
 templ GamesList(games []services.Game, currentPage int) {
 	// Loop through games
 	for i, game := range games {
 		if i == len(games) - 1 {
-			<div id="load_more" 
-				hx-trigger="revealed" 
-				hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) } 
-				hx-target="#game_list" 
-				hx-swap="beforeend" 
-				hx-boost="once">
-			@GameCard(game)
+			<div
+				id="load_more"
+				hx-trigger="revealed"
+				hx-get={ "/list?page=" + strconv.Itoa(currentPage+1) }
+				hx-target="#game_list"
+				hx-swap="beforeend"
+				hx-boost="once"
+			>
+				@GameCard(game)
 			</div>
 		}
 		@GameCard(game)

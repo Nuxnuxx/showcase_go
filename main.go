@@ -20,6 +20,8 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.Secure())
 
+	e.Static("/internal/css", "internal/css")
+
 	PORT := flag.String("port", ":"+os.Getenv("PORT"), "port to run the server on")
 
 	store, err := database.NewStore(os.Getenv("DB_NAME"))
@@ -36,7 +38,9 @@ func main() {
 	authServices := services.NewAuthServices(services.User{}, store, os.Getenv("SECRET_KEY"))
 	authHandler := handlers.NewAuthHandler(authServices)
 
-	handlers.SetupRoutes(e, gameHandler, authHandler)
+	userInteractionHandler := handlers.NewUserInteractionHandler(authServices, gameServices)
+
+	handlers.SetupRoutes(e, gameHandler, authHandler, userInteractionHandler)
 
 	// Start the server
 	e.Logger.Fatal(e.Start(*PORT))

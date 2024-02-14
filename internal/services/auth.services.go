@@ -103,3 +103,25 @@ func (as *AuthService) CheckEmail(email string) (User, error) {
 
 	return as.User, nil
 }
+
+func (as *AuthService) GetUserId(email string) (int, error) {
+	query := `SELECT id FROM users WHERE email = ?`
+
+	stmt, err := as.UserStore.Db.Prepare(query)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer stmt.Close()
+
+	var id int
+
+	err = stmt.QueryRow(email).Scan(&id)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}

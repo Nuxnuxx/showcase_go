@@ -59,5 +59,19 @@ func createMigrations(dbName string, db *sql.DB) error {
 		return err
 	}
 
+	stmt = `CREATE TABLE IF NOT EXISTS user_liked_games (
+    user_id INT,
+    liked_game_id INT,
+    PRIMARY KEY (user_id, liked_game_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (liked_game_id) REFERENCES games(id)
+	);`
+
+	_, err = db.Exec(stmt)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
