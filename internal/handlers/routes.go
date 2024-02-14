@@ -13,21 +13,25 @@ func SetupRoutes(e *echo.Echo, gh *GamesHandler, as *AuthHandler) {
 	e.GET("/list", gh.GetGamesByPage)
 	e.GET("/game/:id", gh.GetGameById)
 
-	e.GET("/register", as.Register)
-	e.POST("/register", as.Register)
-	e.GET("/login", as.Login)
+	authRouter := e.Group("/auth")
+	authRouter.POST("/logout", as.Logout)
+	authRouter.Use(as.CheckLogged)
+	authRouter.GET("/register", as.Register)
+	authRouter.POST("/register", as.Register)
+	authRouter.GET("/login", as.Login)
+	authRouter.POST("/login", as.Login)
 
 	protectedRoute := e.Group("/protected", echojwt.WithConfig(echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(services.JwtCustomClaims)
 		},
-		SigningKey:  as.AuthServices.GetSecretKey(),
-		TokenLookup: "cookie:user",
+		ErrorHandler: as.CheckNotLogged,
+		SigningKey:   as.AuthServices.GetSecretKey(),
+		TokenLookup:  "cookie:user",
 	}))
 
 	protectedRoute.GET("/profil", as.Profil)
 }
-
 
 func HomeHandler(c echo.Context) error {
 	return renderView(c, layout.HomeIndex())

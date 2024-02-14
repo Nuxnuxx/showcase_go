@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -67,7 +66,6 @@ func (gh *GamesHandler) GetGameById(c echo.Context) error {
 	game, err := gh.GamesServices.GetGamesByID(idInt)
 
 	if err != nil {
-		fmt.Println(err)
 		c.Response().WriteHeader(http.StatusInternalServerError)
 		return renderView(c, errors_pages.Error500Index())
 	}

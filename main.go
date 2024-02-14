@@ -18,6 +18,7 @@ func main() {
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.Secure())
 
 	PORT := flag.String("port", ":"+os.Getenv("PORT"), "port to run the server on")
 
